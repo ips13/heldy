@@ -37,7 +37,12 @@ export type SugarCategory = 'low' | 'normal' | 'pre-diabetic' | 'diabetic';
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 
-export type PeriodFilter = '7d' | '14d' | '30d' | '90d' | 'all';
+export type PeriodFilter = '7d' | '14d' | '30d' | '90d' | 'all' | 'custom';
+
+export interface CustomDateRange {
+  from: string; // YYYY-MM-DD
+  to: string;   // YYYY-MM-DD
+}
 
 export type DayPeriod = 'morning' | 'noon' | 'evening' | 'night';
 

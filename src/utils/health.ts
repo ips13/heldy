@@ -1,6 +1,7 @@
 import { format, subDays, parseISO, isAfter } from 'date-fns';
 import type {
   BPCategory,
+  CustomDateRange,
   DayPeriod,
   SugarCategory,
   PeriodFilter,
@@ -22,11 +23,35 @@ export function formatShortDate(iso: string): string {
   return format(parseISO(iso), 'MMM d');
 }
 
+export function formatDateTimeInputValue(iso?: string): string {
+  const date = iso ? new Date(iso) : new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join('-') + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function toIsoFromDateTimeInput(value: string): string {
+  return value ? new Date(value).toISOString() : new Date().toISOString();
+}
+
 export function filterByPeriod<T extends { timestamp: string }>(
   items: T[],
   period: PeriodFilter,
+  customRange?: CustomDateRange,
 ): T[] {
   if (period === 'all') return items;
+  if (period === 'custom') {
+    if (!customRange?.from || !customRange?.to) return items;
+    const from = new Date(customRange.from).getTime();
+    const to = new Date(customRange.to + 'T23:59:59').getTime();
+    return items.filter((r) => {
+      const t = new Date(r.timestamp).getTime();
+      return t >= from && t <= to;
+    });
+  }
   const days = period === '7d' ? 7 : period === '14d' ? 14 : period === '30d' ? 30 : 90;
   const cutoff = subDays(new Date(), days);
   return items.filter((r) => isAfter(parseISO(r.timestamp), cutoff));

@@ -11,13 +11,14 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { Mic, Pencil, PlusCircle, Trash2 } from 'lucide-react';
-import type { DayPeriod, MealContext, PeriodFilter, SugarReading, SugarUnit } from '../types';
+import type { CustomDateRange, DayPeriod, MealContext, PeriodFilter, SugarReading, SugarUnit } from '../types';
 import {
   classifySugar,
   SUGAR_CATEGORY_LABELS,
   SUGAR_CATEGORY_BADGE,
   DAY_PERIOD_LABELS,
   formatDateTime,
+  formatDateTimeInputValue,
   formatShortDate,
   filterByPeriod,
   generateId,
@@ -25,12 +26,15 @@ import {
   getDayPeriodFromTimestamp,
   mgdlToMmol,
   mmolToMgdl,
+  toIsoFromDateTimeInput,
 } from '../utils/health';
 import { sugarStorage } from '../utils/storage';
 import { useSpeech } from '../hooks/useSpeech';
 import { PeriodSelector } from '../components/PeriodSelector';
 import { StatCard } from '../components/StatCard';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
+import { BottomSheet } from '../components/BottomSheet';
+import { VoiceInputSheet } from '../components/VoiceInputSheet';
 
 const MEAL_CONTEXT_LABELS: Record<MealContext, string> = {
   fasting: 'Fasting',
@@ -63,31 +67,64 @@ export function SugarPage() {
   const [unit, setUnit] = useState<SugarUnit>('mg/dL');
   const [mealContext, setMealContext] = useState<MealContext>('fasting');
   const [note, setNote] = useState('');
+  const [entryDateTime, setEntryDateTime] = useState(() => formatDateTimeInputValue());
+  const [editingReading, setEditingReading] = useState<SugarReading | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [editUnit, setEditUnit] = useState<SugarUnit>('mg/dL');
+  const [editMealContext, setEditMealContext] = useState<MealContext>('fasting');
+  const [editNote, setEditNote] = useState('');
+  const [editDateTime, setEditDateTime] = useState(() => formatDateTimeInputValue());
   const [editPeriod, setEditPeriod] = useState<DayPeriod>('morning');
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
+  const [customRange, setCustomRange] = useState<CustomDateRange>({ from: '', to: '' });
   const speech = useSpeech();
-  const prevTranscript = useRef('');
+  const saveTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     setReadings(sugarStorage.getAll());
   }, []);
 
-  useEffect(() => {
-    if (!speech.transcript || speech.transcript === prevTranscript.current) return;
-    prevTranscript.current = speech.transcript;
+  const handleVoiceConfirm = () => {
     const num = speech.transcript.match(/\d+(\.\d+)?/)?.[0] ?? '';
     if (num) setValue(num);
+    speech.stop();
     speech.reset();
-  }, [speech.transcript]);
+    setIsVoiceSheetOpen(false);
+  };
+
+  const handleVoiceRetake = () => {
+    speech.stop();
+    speech.reset();
+    speech.start();
+  };
+
+  const handleVoiceOpen = () => {
+    speech.stop();
+    speech.reset();
+    setIsVoiceSheetOpen(true);
+    speech.start();
+  };
+
+  const handleVoiceClose = () => {
+    speech.stop();
+    speech.reset();
+    setIsVoiceSheetOpen(false);
+  };
 
   const resetForm = () => {
     setValue('');
     setUnit('mg/dL');
     setMealContext('fasting');
     setNote('');
-    setEditingId(null);
+    setEntryDateTime(formatDateTimeInputValue());
+  };
+
+  const showSavedState = () => {
+    setSaved(true);
+    if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = window.setTimeout(() => setSaved(false), 1600);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -95,42 +132,51 @@ export function SugarPage() {
     const numVal = parseFloat(value);
     if (!numVal || numVal <= 0) return;
 
-    if (editingId) {
-      const target = readings.find((r) => r.id === editingId);
-      if (!target) return;
-      sugarStorage.update({
-        ...target,
-        value: numVal,
-        unit,
-        mealContext,
-        note: note.trim() || undefined,
-        dayPeriod: editPeriod,
-      });
-    } else {
-      const now = new Date();
-      sugarStorage.add({
-        id: generateId(),
-        value: numVal,
-        unit,
-        mealContext,
-        note: note.trim() || undefined,
-        timestamp: now.toISOString(),
-        dayPeriod: getDayPeriod(now),
-      });
-    }
+    const timestamp = toIsoFromDateTimeInput(entryDateTime);
+    const entryDate = new Date(timestamp);
+    sugarStorage.add({
+      id: generateId(),
+      value: numVal,
+      unit,
+      mealContext,
+      note: note.trim() || undefined,
+      timestamp,
+      dayPeriod: getDayPeriod(entryDate),
+    });
 
     setReadings(sugarStorage.getAll());
     resetForm();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1600);
+    showSavedState();
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReading) return;
+    const numVal = parseFloat(editValue);
+    if (!numVal || numVal <= 0) return;
+
+    sugarStorage.update({
+      ...editingReading,
+      value: numVal,
+      unit: editUnit,
+      mealContext: editMealContext,
+      note: editNote.trim() || undefined,
+      timestamp: toIsoFromDateTimeInput(editDateTime),
+      dayPeriod: editPeriod,
+    });
+
+    setReadings(sugarStorage.getAll());
+    setEditingReading(null);
+    showSavedState();
   };
 
   const handleEdit = (reading: SugarReading) => {
-    setEditingId(reading.id);
-    setValue(String(reading.value));
-    setUnit(reading.unit);
-    setMealContext(reading.mealContext);
-    setNote(reading.note ?? '');
+    setEditingReading(reading);
+    setEditValue(String(reading.value));
+    setEditUnit(reading.unit);
+    setEditMealContext(reading.mealContext);
+    setEditNote(reading.note ?? '');
+    setEditDateTime(formatDateTimeInputValue(reading.timestamp));
     setEditPeriod(reading.dayPeriod ?? getDayPeriodFromTimestamp(reading.timestamp));
   };
 
@@ -140,7 +186,7 @@ export function SugarPage() {
     setDeleteId(null);
   };
 
-  const filtered = filterByPeriod(readings, period);
+  const filtered = filterByPeriod(readings, period, customRange);
   const chartData = [...filtered]
     .reverse()
     .map((r) => ({
@@ -168,19 +214,8 @@ export function SugarPage() {
       <div className="card">
         <h3 className="font-semibold text-slate-200 mb-4 flex items-center gap-2">
           <PlusCircle className="w-5 h-5 text-orange-400" />
-          {editingId ? 'Edit Reading' : 'Add Reading'}
+          Add Reading
         </h3>
-
-        <div className="mb-4 p-3 bg-slate-800/60 rounded-xl">
-          <p className="text-xs text-slate-400">Voice input</p>
-          <p className="text-sm text-slate-300 truncate">
-            {speech.isListening
-              ? 'Listening... say glucose value, for example "108"'
-              : speech.transcript
-              ? `Heard: "${speech.transcript}"`
-              : 'Tap floating mic at bottom-right to speak'}
-          </p>
-        </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
@@ -236,28 +271,6 @@ export function SugarPage() {
             </div>
           </div>
 
-          {editingId && (
-            <div>
-              <label className="label">Time of Day</label>
-              <div className="flex gap-2 flex-wrap">
-                {DAY_PERIODS.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setEditPeriod(p)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      editPeriod === p
-                        ? 'bg-orange-600 text-white'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                    }`}
-                  >
-                    {DAY_PERIOD_LABELS[p]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div>
             <label className="label">Note (optional)</label>
             <input
@@ -270,16 +283,27 @@ export function SugarPage() {
             />
           </div>
 
+          <div>
+            <label className="label">Date & Time</label>
+            <input
+              className="input-field"
+              type="datetime-local"
+              value={entryDateTime}
+              max={formatDateTimeInputValue()}
+              onChange={(e) => setEntryDateTime(e.target.value)}
+            />
+          </div>
+
           <div className="flex gap-3">
             <button type="submit" className="btn-primary self-start" style={{ backgroundColor: '#ea580c' }}>
-              {saved ? 'Saved' : editingId ? 'Save Changes' : 'Save Reading'}
+              {saved ? 'Saved' : 'Save Reading'}
             </button>
-            {editingId && (
-              <button type="button" className="btn-secondary" onClick={resetForm}>
-                Cancel Edit
-              </button>
-            )}
           </div>
+          {speech.isSupported && (
+            <p className="text-xs text-slate-500">
+              Tap the mic button at the bottom-right to speak a reading (e.g. "108" or "5.5").
+            </p>
+          )}
         </form>
       </div>
 
@@ -301,7 +325,7 @@ export function SugarPage() {
         <div className="card">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <h3 className="font-semibold text-slate-200">Trend (mg/dL)</h3>
-            <PeriodSelector value={period} onChange={setPeriod} />
+            <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
           </div>
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
@@ -328,7 +352,7 @@ export function SugarPage() {
       <div className="card">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h3 className="font-semibold text-slate-200">History</h3>
-          <PeriodSelector value={period} onChange={setPeriod} />
+          <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
         </div>
 
         {filtered.length === 0 ? (
@@ -380,7 +404,7 @@ export function SugarPage() {
       <button
         type="button"
         className={`floating-mic ${speech.isListening ? 'floating-mic-live' : ''}`}
-        onClick={() => (speech.isListening ? speech.stop() : speech.start())}
+        onClick={handleVoiceOpen}
         title={speech.isListening ? 'Stop voice input' : 'Start voice input'}
       >
         <Mic className="w-6 h-6" />
@@ -390,6 +414,131 @@ export function SugarPage() {
         <ConfirmDeleteModal
           onConfirm={() => handleDelete(deleteId)}
           onCancel={() => setDeleteId(null)}
+        />
+      )}
+
+      {editingReading && (
+        <BottomSheet
+          title="Edit Reading"
+          subtitle={formatDateTime(editingReading.timestamp)}
+          onClose={() => setEditingReading(null)}
+        >
+          <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+            <div>
+              <label className="label">Glucose Value *</label>
+              <div className="flex gap-2">
+                <input
+                  className="input-field"
+                  type="number"
+                  step="0.1"
+                  min={1}
+                  max={1000}
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  required
+                />
+                <div className="flex rounded-xl overflow-hidden border border-slate-700">
+                  {(['mg/dL', 'mmol/L'] as SugarUnit[]).map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => setEditUnit(u)}
+                      className={`px-3 py-2 text-sm font-medium transition-colors ${
+                        editUnit === u
+                          ? 'bg-orange-600 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">When taken?</label>
+              <div className="flex gap-2 flex-wrap">
+                {(Object.keys(MEAL_CONTEXT_LABELS) as MealContext[]).map((ctx) => (
+                  <button
+                    key={ctx}
+                    type="button"
+                    onClick={() => setEditMealContext(ctx)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      editMealContext === ctx
+                        ? 'bg-orange-600 text-white'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    {MEAL_CONTEXT_LABELS[ctx]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Time of Day</label>
+              <div className="flex gap-2 flex-wrap">
+                {DAY_PERIODS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setEditPeriod(p)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      editPeriod === p
+                        ? 'bg-orange-600 text-white'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    {DAY_PERIOD_LABELS[p]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Date & Time</label>
+              <input
+                className="input-field"
+                type="datetime-local"
+                value={editDateTime}
+                max={formatDateTimeInputValue()}
+                onChange={(e) => setEditDateTime(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="label">Note (optional)</label>
+              <input
+                className="input-field"
+                type="text"
+                value={editNote}
+                onChange={(e) => setEditNote(e.target.value)}
+                maxLength={200}
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button type="button" className="btn-secondary" onClick={() => setEditingReading(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="btn-primary flex-1" style={{ backgroundColor: '#ea580c' }}>
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </BottomSheet>
+      )}
+
+      {isVoiceSheetOpen && (
+        <VoiceInputSheet
+          transcript={speech.transcript}
+          isListening={speech.isListening}
+          accentClassName="bg-gradient-to-br from-orange-500 to-amber-500"
+          exampleText="108 or 5.5"
+          onConfirm={handleVoiceConfirm}
+          onRetake={handleVoiceRetake}
+          onCancel={handleVoiceClose}
         />
       )}
     </div>

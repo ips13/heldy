@@ -45,15 +45,19 @@ export function useSpeech(): UseSpeechReturn {
 
   const start = useCallback(() => {
     if (!SpeechRecognitionAPI) return;
+    recognitionRef.current?.stop();
     const recognition = new SpeechRecognitionAPI();
     recognition.lang = 'en-US';
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
-    recognition.continuous = false;
+    recognition.continuous = true;
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const result = event.results[event.results.length - 1];
-      setTranscript(result[0].transcript);
+      const nextTranscript = Array.from(event.results)
+        .map((result) => result[0]?.transcript ?? '')
+        .join(' ')
+        .trim();
+      setTranscript(nextTranscript);
     };
 
     recognition.onend = () => setIsListening(false);
