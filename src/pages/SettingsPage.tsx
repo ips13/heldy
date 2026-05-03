@@ -1,6 +1,13 @@
-import { Download, Moon, Palette, Sun } from 'lucide-react';
-import { bpStorage, sugarStorage } from '../utils/storage';
-import { buildCombinedCsv, downloadCsv } from '../utils/export';
+import { useRef, type ChangeEvent } from 'react';
+import { Download, Moon, Palette, Sun, Upload, Database, RotateCcw } from 'lucide-react';
+import { bpStorage, sugarStorage, applyAppBackupData, getAppBackupData } from '../utils/storage';
+import {
+  buildCombinedCsv,
+  downloadCsv,
+  downloadJson,
+  parseBackupJson,
+  parseCombinedCsv,
+} from '../utils/export';
 
 interface Props {
   theme: 'dark' | 'light';
@@ -8,12 +15,73 @@ interface Props {
 }
 
 export function SettingsPage({ theme, onThemeChange }: Props) {
+  const csvInputRef = useRef<HTMLInputElement | null>(null);
+  const backupInputRef = useRef<HTMLInputElement | null>(null);
+
   const handleExport = () => {
     const bpReadings = bpStorage.getAll();
     const sugarReadings = sugarStorage.getAll();
     const csv = buildCombinedCsv(bpReadings, sugarReadings);
     const exportDate = new Date().toISOString().slice(0, 10);
     downloadCsv(`ihealth-records-${exportDate}.csv`, csv);
+  };
+
+  const handleImportCsv = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const content = await file.text();
+      const parsed = parseCombinedCsv(content);
+      if (parsed.bpReadings.length === 0 && parsed.sugarReadings.length === 0) {
+        window.alert('No valid records found in this CSV file.');
+        return;
+      }
+
+      const shouldReplace = window.confirm(
+        'Replace existing records with imported data? Click Cancel to append imported records.',
+      );
+
+      if (shouldReplace) {
+        bpStorage.replaceAll(parsed.bpReadings);
+        sugarStorage.replaceAll(parsed.sugarReadings);
+      } else {
+        bpStorage.replaceAll([...bpStorage.getAll(), ...parsed.bpReadings]);
+        sugarStorage.replaceAll([...sugarStorage.getAll(), ...parsed.sugarReadings]);
+      }
+
+      window.alert('CSV imported successfully.');
+    } catch {
+      window.alert('Import failed. Please choose a valid CSV exported from this app.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const handleBackupDownload = () => {
+    const backup = getAppBackupData();
+    const exportDate = new Date().toISOString().slice(0, 10);
+    downloadJson(`ihealth-backup-${exportDate}.json`, backup);
+  };
+
+  const handleBackupRestore = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const content = await file.text();
+      const backup = parseBackupJson(content);
+      const confirmed = window.confirm('Restore full app backup now? This will overwrite existing records.');
+      if (!confirmed) return;
+
+      applyAppBackupData(backup);
+      if (backup.theme) onThemeChange(backup.theme);
+      window.alert('Backup restored successfully.');
+    } catch {
+      window.alert('Restore failed. Please choose a valid ihealth backup JSON file.');
+    } finally {
+      event.target.value = '';
+    }
   };
 
   return (
@@ -71,20 +139,71 @@ export function SettingsPage({ theme, onThemeChange }: Props) {
       <div className="card">
         <h3 className="font-semibold text-slate-200 mb-4 flex items-center gap-2">
           <Download className="w-5 h-5 text-emerald-400" />
-          Export Records
+          Export / Import Records
         </h3>
         <p className="text-sm text-slate-400 mb-4">
-          Download one CSV file with all blood pressure and sugar readings ordered by date and time,
-          ready to share with your doctor.
+          Download one CSV with all readings, or import CSV back into the app.
         </p>
-        <button
-          type="button"
-          onClick={handleExport}
-          className="btn-primary inline-flex items-center gap-2 self-start"
-        >
-          <Download className="w-4 h-4" />
-          Export CSV
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={handleExport}
+            className="btn-primary inline-flex items-center gap-2 self-start"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => csvInputRef.current?.click()}
+            className="btn-secondary inline-flex items-center gap-2 self-start"
+          >
+            <Upload className="w-4 h-4" />
+            Import CSV
+          </button>
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleImportCsv}
+          />
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 className="font-semibold text-slate-200 mb-4 flex items-center gap-2">
+          <Database className="w-5 h-5 text-cyan-400" />
+          Full App Backup / Restore
+        </h3>
+        <p className="text-sm text-slate-400 mb-4">
+          Create a full backup (theme + all records) or restore from a previous backup file.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={handleBackupDownload}
+            className="btn-primary inline-flex items-center gap-2 self-start"
+          >
+            <Download className="w-4 h-4" />
+            Download Backup
+          </button>
+          <button
+            type="button"
+            onClick={() => backupInputRef.current?.click()}
+            className="btn-secondary inline-flex items-center gap-2 self-start"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Restore Backup
+          </button>
+          <input
+            ref={backupInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={handleBackupRestore}
+          />
+        </div>
       </div>
     </div>
   );

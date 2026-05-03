@@ -30,6 +30,10 @@ export const bpStorage = {
     save(BP_KEY, [...all, reading]);
   },
 
+  replaceAll(readings: BPReading[]): void {
+    save(BP_KEY, readings);
+  },
+
   update(updated: BPReading): void {
     const all = load<BPReading>(BP_KEY).map((r) =>
       r.id === updated.id ? updated : r,
@@ -57,6 +61,10 @@ export const sugarStorage = {
     save(SUGAR_KEY, [...all, reading]);
   },
 
+  replaceAll(readings: SugarReading[]): void {
+    save(SUGAR_KEY, readings);
+  },
+
   update(updated: SugarReading): void {
     const all = load<SugarReading>(SUGAR_KEY).map((r) =>
       r.id === updated.id ? updated : r,
@@ -69,3 +77,29 @@ export const sugarStorage = {
     save(SUGAR_KEY, all);
   },
 };
+
+export interface AppBackupData {
+  theme?: 'dark' | 'light';
+  bpReadings: BPReading[];
+  sugarReadings: SugarReading[];
+  version?: string;
+  exportedAt?: string;
+}
+
+export function getAppBackupData(): AppBackupData {
+  return {
+    theme: localStorage.getItem('ihealth_theme') === 'light' ? 'light' : 'dark',
+    bpReadings: bpStorage.getAll(),
+    sugarReadings: sugarStorage.getAll(),
+    version: '1.0.0',
+    exportedAt: new Date().toISOString(),
+  };
+}
+
+export function applyAppBackupData(data: AppBackupData): void {
+  bpStorage.replaceAll(data.bpReadings ?? []);
+  sugarStorage.replaceAll(data.sugarReadings ?? []);
+  if (data.theme) {
+    localStorage.setItem('ihealth_theme', data.theme);
+  }
+}

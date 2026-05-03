@@ -77,6 +77,7 @@ export function SugarPage() {
   const [editPeriod, setEditPeriod] = useState<DayPeriod>('morning');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
   const [customRange, setCustomRange] = useState<CustomDateRange>({ from: '', to: '' });
   const speech = useSpeech();
@@ -91,6 +92,7 @@ export function SugarPage() {
     if (num) setValue(num);
     speech.stop();
     speech.reset();
+    setIsAddSheetOpen(true);
     setIsVoiceSheetOpen(false);
   };
 
@@ -103,8 +105,17 @@ export function SugarPage() {
   const handleVoiceOpen = () => {
     speech.stop();
     speech.reset();
+    setIsAddSheetOpen(true);
     setIsVoiceSheetOpen(true);
     speech.start();
+  };
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    handleSubmit(e);
+    const numVal = parseFloat(value);
+    if (numVal > 0) {
+      setIsAddSheetOpen(false);
+    }
   };
 
   const handleVoiceClose = () => {
@@ -211,7 +222,7 @@ export function SugarPage() {
         <p className="text-slate-400 text-sm mt-1">Track glucose levels and see your trends</p>
       </div>
 
-      <div className="card">
+      <div className="card hidden">
         <h3 className="font-semibold text-slate-200 mb-4 flex items-center gap-2">
           <PlusCircle className="w-5 h-5 text-orange-400" />
           Add Reading
@@ -401,14 +412,24 @@ export function SugarPage() {
         )}
       </div>
 
-      <button
-        type="button"
-        className={`floating-mic ${speech.isListening ? 'floating-mic-live' : ''}`}
-        onClick={handleVoiceOpen}
-        title={speech.isListening ? 'Stop voice input' : 'Start voice input'}
-      >
-        <Mic className="w-6 h-6" />
-      </button>
+      <div className="floating-actions">
+        <button
+          type="button"
+          className="floating-add"
+          onClick={() => setIsAddSheetOpen(true)}
+          title="Add reading"
+        >
+          <PlusCircle className="w-6 h-6" />
+        </button>
+        <button
+          type="button"
+          className={`floating-mic ${speech.isListening ? 'floating-mic-live' : ''}`}
+          onClick={handleVoiceOpen}
+          title={speech.isListening ? 'Stop voice input' : 'Start voice input'}
+        >
+          <Mic className="w-6 h-6" />
+        </button>
+      </div>
 
       {deleteId && (
         <ConfirmDeleteModal
@@ -524,6 +545,99 @@ export function SugarPage() {
               </button>
               <button type="submit" className="btn-primary flex-1" style={{ backgroundColor: '#ea580c' }}>
                 Save Changes
+              </button>
+            </div>
+          </form>
+        </BottomSheet>
+      )}
+
+      {isAddSheetOpen && (
+        <BottomSheet
+          title="Add Reading"
+          subtitle="Fill details for a new blood sugar entry"
+          onClose={() => setIsAddSheetOpen(false)}
+        >
+          <form onSubmit={handleAddSubmit} className="flex flex-col gap-4">
+            <div>
+              <label className="label">Glucose Value *</label>
+              <div className="flex gap-2">
+                <input
+                  className="input-field"
+                  type="number"
+                  step="0.1"
+                  min={1}
+                  max={1000}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  required
+                />
+                <div className="flex rounded-xl overflow-hidden border border-slate-700">
+                  {(['mg/dL', 'mmol/L'] as SugarUnit[]).map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => setUnit(u)}
+                      className={`px-3 py-2 text-sm font-medium transition-colors ${
+                        unit === u
+                          ? 'bg-orange-600 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">When taken?</label>
+              <div className="flex gap-2 flex-wrap">
+                {(Object.keys(MEAL_CONTEXT_LABELS) as MealContext[]).map((ctx) => (
+                  <button
+                    key={ctx}
+                    type="button"
+                    onClick={() => setMealContext(ctx)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      mealContext === ctx
+                        ? 'bg-orange-600 text-white'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    {MEAL_CONTEXT_LABELS[ctx]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Note (optional)</label>
+              <input
+                className="input-field"
+                type="text"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                maxLength={200}
+              />
+            </div>
+
+            <div>
+              <label className="label">Date & Time</label>
+              <input
+                className="input-field"
+                type="datetime-local"
+                value={entryDateTime}
+                max={formatDateTimeInputValue()}
+                onChange={(e) => setEntryDateTime(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button type="button" className="btn-secondary" onClick={() => setIsAddSheetOpen(false)}>
+                Cancel
+              </button>
+              <button type="submit" className="btn-primary flex-1" style={{ backgroundColor: '#ea580c' }}>
+                {saved ? 'Saved' : 'Save Reading'}
               </button>
             </div>
           </form>

@@ -218,6 +218,7 @@ export function BPPage() {
   const [editPeriod, setEditPeriod] = useState<DayPeriod>('morning');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
   const [customRange, setCustomRange] = useState<CustomDateRange>({ from: '', to: '' });
   const speech = useSpeech();
@@ -247,6 +248,7 @@ export function BPPage() {
   const handleVoiceOpen = () => {
     speech.stop();
     speech.reset();
+    setIsAddSheetOpen(true);
     setIsVoiceSheetOpen(true);
     speech.start();
   };
@@ -254,7 +256,32 @@ export function BPPage() {
   const handleVoiceClose = () => {
     speech.stop();
     speech.reset();
+    setIsAddSheetOpen(true);
     setIsVoiceSheetOpen(false);
+  };
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    handleSubmit(e);
+    const sys = parseInt(systolic, 10);
+    const dia = parseInt(diastolic, 10);
+    if (sys && dia && sys >= 60 && sys <= 300 && dia >= 30 && dia <= 200) {
+      setIsAddSheetOpen(false);
+    }
+  };
+
+  const closeAddSheet = () => {
+    resetForm();
+    setIsAddSheetOpen(false);
+  };
+
+  const closeEditSheet = () => {
+    setEditingReading(null);
+    setEditSystolic('');
+    setEditDiastolic('');
+    setEditPulse('');
+    setEditNote('');
+    setEditDateTime(formatDateTimeInputValue());
+    setEditPeriod('morning');
   };
 
   const resetForm = () => {
@@ -358,7 +385,7 @@ export function BPPage() {
         <p className="text-slate-400 text-sm mt-1">Track systolic / diastolic and trends over time</p>
       </div>
 
-      <div className="card">
+      <div className="card hidden">
         <h3 className="font-semibold text-slate-200 mb-4 flex items-center gap-2">
           <PlusCircle className="w-5 h-5 text-blue-400" />
           Add Reading
@@ -537,14 +564,24 @@ export function BPPage() {
         )}
       </div>
 
-      <button
-        type="button"
-        className={`floating-mic ${speech.isListening ? 'floating-mic-live' : ''}`}
-        onClick={handleVoiceOpen}
-        title={speech.isListening ? 'Stop voice input' : 'Start voice input'}
-      >
-        <Mic className="w-6 h-6" />
-      </button>
+      <div className="floating-actions">
+        <button
+          type="button"
+          className="floating-add"
+          onClick={() => setIsAddSheetOpen(true)}
+          title="Add reading"
+        >
+          <PlusCircle className="w-6 h-6" />
+        </button>
+        <button
+          type="button"
+          className={`floating-mic ${speech.isListening ? 'floating-mic-live' : ''}`}
+          onClick={handleVoiceOpen}
+          title={speech.isListening ? 'Stop voice input' : 'Start voice input'}
+        >
+          <Mic className="w-6 h-6" />
+        </button>
+      </div>
 
       {deleteId && (
         <ConfirmDeleteModal
@@ -557,7 +594,7 @@ export function BPPage() {
         <BottomSheet
           title="Edit Reading"
           subtitle={formatDateTime(editingReading.timestamp)}
-          onClose={() => setEditingReading(null)}
+          onClose={closeEditSheet}
         >
           <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
             <div className="grid grid-cols-3 gap-3">
@@ -641,11 +678,94 @@ export function BPPage() {
             </div>
 
             <div className="flex gap-3">
-              <button type="button" className="btn-secondary" onClick={() => setEditingReading(null)}>
+              <button type="button" className="btn-secondary" onClick={closeEditSheet}>
                 Cancel
               </button>
               <button type="submit" className="btn-primary flex-1">
                 Save Changes
+              </button>
+            </div>
+          </form>
+        </BottomSheet>
+      )}
+
+      {isAddSheetOpen && (
+        <BottomSheet
+          title="Add Reading"
+          subtitle="Fill details for a new blood pressure entry"
+          onClose={closeAddSheet}
+        >
+          <form onSubmit={handleAddSubmit} className="flex flex-col gap-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="label">Systolic (mmHg) *</label>
+                <input
+                  className="input-field"
+                  type="number"
+                  min={60}
+                  max={300}
+                  placeholder="120"
+                  value={systolic}
+                  onChange={(e) => setSystolic(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">Diastolic (mmHg) *</label>
+                <input
+                  className="input-field"
+                  type="number"
+                  min={30}
+                  max={200}
+                  placeholder="80"
+                  value={diastolic}
+                  onChange={(e) => setDiastolic(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">Pulse (optional)</label>
+                <input
+                  className="input-field"
+                  type="number"
+                  min={30}
+                  max={250}
+                  placeholder="72"
+                  value={pulse}
+                  onChange={(e) => setPulse(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Note (optional)</label>
+              <input
+                className="input-field"
+                type="text"
+                placeholder="after exercise, resting, etc"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                maxLength={200}
+              />
+            </div>
+
+            <div>
+              <label className="label">Date & Time</label>
+              <input
+                className="input-field"
+                type="datetime-local"
+                value={entryDateTime}
+                max={formatDateTimeInputValue()}
+                onChange={(e) => setEntryDateTime(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button type="button" className="btn-secondary" onClick={closeAddSheet}>
+                Cancel
+              </button>
+              <button type="submit" className="btn-primary flex-1">
+                {saved ? 'Saved' : 'Save Reading'}
               </button>
             </div>
           </form>

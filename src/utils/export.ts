@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import type { BPReading, SugarReading } from '../types';
 import { getDayPeriodFromTimestamp } from './health';
+import type { AppBackupData } from './storage';
 
 function escapeCsv(value: string | number | undefined): string {
   if (value === undefined) return '';
@@ -91,4 +92,127 @@ export function downloadCsv(fileName: string, csv: string): void {
   anchor.download = fileName;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === ',' && !inQuotes) {
+      cells.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current);
+  return cells;
+}
+
+function parseTimestamp(dateText: string, timeText: string): string {
+  const safeDate = (dateText || '').trim();
+  const safeTime = (timeText || '').trim();
+  if (!safeDate) return new Date().toISOString();
+  const normalized = `${safeDate}T${safeTime || '00:00'}`;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return new Date().toISOString();
+  return parsed.toISOString();
+}
+
+export function parseCombinedCsv(csv: string): {
+  bpReadings: BPReading[];
+  sugarReadings: SugarReading[];
+} {
+  const lines = csv
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length <= 1) {
+    return { bpReadings: [], sugarReadings: [] };
+  }
+
+  const bpReadings: BPReading[] = [];
+  const sugarReadings: SugarReading[] = [];
+
+  for (const line of lines.slice(1)) {
+    const cells = parseCsvLine(line);
+    const [date, time, type, _dayPeriod, systolic, diastolic, pulse, glucoseValue, glucoseUnit, mealContext, note] = cells;
+    const timestamp = parseTimestamp(date, time);
+
+    if ((type || '').trim().toLowerCase() === 'blood pressure') {
+      const sys = Number(systolic);
+      const dia = Number(diastolic);
+      if (!Number.isFinite(sys) || !Number.isFinite(dia)) continue;
+      const pulseNum = Number(pulse);
+      bpReadings.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        systolic: sys,
+        diastolic: dia,
+        pulse: Number.isFinite(pulseNum) ? pulseNum : undefined,
+        note: note?.trim() || undefined,
+        timestamp,
+        dayPeriod: getDayPeriodFromTimestamp(timestamp),
+      });
+      continue;
+    }
+
+    if ((type || '').trim().toLowerCase() === 'blood sugar') {
+      const value = Number(glucoseValue);
+      const unit = glucoseUnit === 'mmol/L' ? 'mmol/L' : 'mg/dL';
+      const safeMealContext =
+        mealContext === 'fasting' ||
+        mealContext === 'before-meal' ||
+        mealContext === 'after-meal' ||
+        mealContext === 'bedtime' ||
+        mealContext === 'random'
+          ? mealContext
+          : 'random';
+      if (!Number.isFinite(value)) continue;
+      sugarReadings.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        value,
+        unit,
+        mealContext: safeMealContext,
+        note: note?.trim() || undefined,
+        timestamp,
+        dayPeriod: getDayPeriodFromTimestamp(timestamp),
+      });
+    }
+  }
+
+  return { bpReadings, sugarReadings };
+}
+
+export function downloadJson(fileName: string, data: unknown): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export function parseBackupJson(content: string): AppBackupData {
+  const parsed = JSON.parse(content) as AppBackupData;
+  return {
+    theme: parsed.theme === 'light' ? 'light' : parsed.theme === 'dark' ? 'dark' : undefined,
+    bpReadings: Array.isArray(parsed.bpReadings) ? parsed.bpReadings : [],
+    sugarReadings: Array.isArray(parsed.sugarReadings) ? parsed.sugarReadings : [],
+    version: parsed.version,
+    exportedAt: parsed.exportedAt,
+  };
 }
