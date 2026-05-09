@@ -6,6 +6,7 @@ import { BPPage } from './pages/BPPage';
 import { SugarPage } from './pages/SugarPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { bpStorage, sugarStorage } from './utils/storage';
+import { LockScreen } from './components/LockScreen';
 
 const TABS: { id: ActiveTab; label: string; Icon: React.FC<{ className?: string }> }[] = [
   { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
@@ -15,9 +16,12 @@ const TABS: { id: ActiveTab; label: string; Icon: React.FC<{ className?: string 
 ];
 
 export default function App() {
+  const [isLocked, setIsLocked] = useState(() => {
+    return sessionStorage.getItem('heldy_unlocked') !== 'true';
+  });
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('ihealth_theme');
+    const saved = localStorage.getItem('heldy_theme');
     return saved === 'light' ? 'light' : 'dark';
   });
   const [bpReadings, setBpReadings] = useState<BPReading[]>([]);
@@ -32,16 +36,24 @@ export default function App() {
 
   useEffect(() => {
     document.body.setAttribute('data-theme', theme);
-    localStorage.setItem('ihealth_theme', theme);
+    localStorage.setItem('heldy_theme', theme);
   }, [theme]);
 
   return (
     <div className="app-shell flex flex-col min-h-dvh">
+      {isLocked && (
+        <LockScreen
+          onUnlock={() => {
+            sessionStorage.setItem('heldy_unlocked', 'true');
+            setIsLocked(false);
+          }}
+        />
+      )}
       <header className="sticky top-0 z-40 bg-slate-950/75 backdrop-blur-xl border-b border-slate-800/70">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-red-400 text-xl">+</span>
-            <span className="font-bold text-lg text-slate-100 tracking-tight">iHealth</span>
+            <img src="/heldy.png" alt="" className="w-8 h-8 rounded-lg object-cover" aria-hidden="true" />
+            <span className="font-bold text-lg text-slate-100 tracking-tight">Heldy</span>
           </div>
           <p className="text-xs text-slate-500 hidden sm:block">Your personal health companion</p>
         </div>

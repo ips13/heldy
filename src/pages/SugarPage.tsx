@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
@@ -10,7 +12,7 @@ import {
   Legend,
   ReferenceLine,
 } from 'recharts';
-import { Mic, Pencil, PlusCircle, Trash2 } from 'lucide-react';
+import { Copy, Eye, EyeOff, Mic, Pencil, PlusCircle, Trash2 } from 'lucide-react';
 import type { CustomDateRange, DayPeriod, MealContext, PeriodFilter, SugarReading, SugarUnit } from '../types';
 import {
   classifySugar,
@@ -33,8 +35,10 @@ import { useSpeech } from '../hooks/useSpeech';
 import { PeriodSelector } from '../components/PeriodSelector';
 import { StatCard } from '../components/StatCard';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
+import { CopyDateModal } from '../components/CopyDateModal';
 import { BottomSheet } from '../components/BottomSheet';
 import { VoiceInputSheet } from '../components/VoiceInputSheet';
+import { SwipeableRow } from '../components/SwipeableRow';
 
 const MEAL_CONTEXT_LABELS: Record<MealContext, string> = {
   fasting: 'Fasting',
@@ -76,6 +80,9 @@ export function SugarPage() {
   const [editDateTime, setEditDateTime] = useState(() => formatDateTimeInputValue());
   const [editPeriod, setEditPeriod] = useState<DayPeriod>('morning');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [copyingReading, setCopyingReading] = useState<SugarReading | null>(null);
+  const [chartType, setChartType] = useState<'area' | 'bar'>('area');
+  const [showActions, setShowActions] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
@@ -195,6 +202,23 @@ export function SugarPage() {
     sugarStorage.remove(id);
     setReadings(sugarStorage.getAll());
     setDeleteId(null);
+  };
+
+  const handleCopy = (reading: SugarReading, useToday: boolean) => {
+    const timestamp = useToday ? new Date().toISOString() : reading.timestamp;
+    const entryDate = new Date(timestamp);
+    sugarStorage.add({
+      id: generateId(),
+      value: reading.value,
+      unit: reading.unit,
+      mealContext: reading.mealContext,
+      note: reading.note,
+      timestamp,
+      dayPeriod: getDayPeriod(entryDate),
+    });
+    setReadings(sugarStorage.getAll());
+    setCopyingReading(null);
+    showSavedState();
   };
 
   const filtered = filterByPeriod(readings, period, customRange);
@@ -336,8 +360,31 @@ export function SugarPage() {
         <div className="card">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <h3 className="font-semibold text-slate-200">Trend (mg/dL)</h3>
-            <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex rounded-lg overflow-hidden border border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setChartType('area')}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    chartType === 'area' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  Area
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartType('bar')}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    chartType === 'bar' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  Bar
+                </button>
+              </div>
+              <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
+            </div>
           </div>
+          {chartType === 'area' ? (
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
               <defs>
@@ -357,14 +404,45 @@ export function SugarPage() {
               <Area type="monotone" dataKey="Blood Sugar" stroke="#f97316" fill="url(#gSugar)" strokeWidth={2} dot={{ r: 3, fill: '#f97316' }} />
             </AreaChart>
           </ResponsiveContainer>
+          ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 12 }} />
+              <YAxis tick={{ fill: '#64748b', fontSize: 12 }} domain={['auto', 'auto']} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 13 }} />
+              <ReferenceLine y={70} stroke="#38bdf8" strokeDasharray="4 2" />
+              <ReferenceLine y={100} stroke="#10b981" strokeDasharray="4 2" />
+              <ReferenceLine y={126} stroke="#f59e0b" strokeDasharray="4 2" />
+              <Bar dataKey="Blood Sugar" fill="#f97316" radius={[3, 3, 0, 0]} maxBarSize={24} />
+            </BarChart>
+          </ResponsiveContainer>
+          )}
         </div>
       )}
 
       <div className="card">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h3 className="font-semibold text-slate-200">History</h3>
-          <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowActions((s) => !s)}
+              className={`btn-icon text-slate-500 ${showActions ? 'text-orange-400' : 'hover:text-slate-300'}`}
+              title={showActions ? 'Hide actions' : 'Show copy & delete'}
+            >
+              {showActions ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+            <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
+          </div>
         </div>
+
+        {!showActions && filtered.length > 0 && (
+          <p className="text-xs text-slate-500 mb-3">
+            Swipe left to delete · right to copy
+          </p>
+        )}
 
         {filtered.length === 0 ? (
           <p className="text-slate-500 text-sm py-6 text-center">No readings for this period.</p>
@@ -376,36 +454,50 @@ export function SugarPage() {
               const mmol = r.unit === 'mg/dL' ? mgdlToMmol(r.value) : r.value;
               const periodValue = r.dayPeriod ?? getDayPeriodFromTimestamp(r.timestamp);
               return (
-                <div
+                <SwipeableRow
                   key={r.id}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 hover:bg-slate-800 transition-colors"
+                  onDeleteRequest={() => setDeleteId(r.id)}
+                  onCopyRequest={() => setCopyingReading(r)}
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-lg font-bold text-slate-100 tabular-nums">{mgdl} mg/dL</span>
-                      <span className="text-sm text-slate-500 tabular-nums">({mmol} mmol/L)</span>
-                      <span className={SUGAR_CATEGORY_BADGE[cat]}>{SUGAR_CATEGORY_LABELS[cat]}</span>
-                      <span className="text-xs text-slate-500 bg-slate-700/60 px-2 py-0.5 rounded-full">{MEAL_CONTEXT_LABELS[r.mealContext]}</span>
-                      <span className="text-xs text-slate-500 bg-slate-700/60 px-2 py-0.5 rounded-full">{DAY_PERIOD_LABELS[periodValue]}</span>
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-lg font-bold text-slate-100 tabular-nums">{mgdl} mg/dL</span>
+                        <span className="text-sm text-slate-500 tabular-nums">({mmol} mmol/L)</span>
+                        <span className={SUGAR_CATEGORY_BADGE[cat]}>{SUGAR_CATEGORY_LABELS[cat]}</span>
+                        <span className="text-xs text-slate-500 bg-slate-700/60 px-2 py-0.5 rounded-full">{MEAL_CONTEXT_LABELS[r.mealContext]}</span>
+                        <span className="text-xs text-slate-500 bg-slate-700/60 px-2 py-0.5 rounded-full">{DAY_PERIOD_LABELS[periodValue]}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">{formatDateTime(r.timestamp)}</p>
+                      {r.note && <p className="text-xs text-slate-400 mt-0.5 italic">{r.note}</p>}
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">{formatDateTime(r.timestamp)}</p>
-                    {r.note && <p className="text-xs text-slate-400 mt-0.5 italic">{r.note}</p>}
+                    {showActions && (
+                      <button
+                        onClick={() => setCopyingReading(r)}
+                        className="btn-icon shrink-0 text-slate-500 hover:text-green-400"
+                        title="Copy reading"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleEdit(r)}
+                      className="btn-icon shrink-0 text-slate-500 hover:text-orange-400"
+                      title="Edit reading"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    {showActions && (
+                      <button
+                        onClick={() => setDeleteId(r.id)}
+                        className="btn-icon shrink-0 text-slate-500 hover:text-red-400"
+                        title="Delete reading"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
-                  <button
-                    onClick={() => handleEdit(r)}
-                    className="btn-icon shrink-0 text-slate-500 hover:text-orange-400"
-                    title="Edit reading"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setDeleteId(r.id)}
-                    className="btn-icon shrink-0 text-slate-500 hover:text-red-400"
-                    title="Delete reading"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                </SwipeableRow>
               );
             })}
           </div>
@@ -435,6 +527,14 @@ export function SugarPage() {
         <ConfirmDeleteModal
           onConfirm={() => handleDelete(deleteId)}
           onCancel={() => setDeleteId(null)}
+        />
+      )}
+
+      {copyingReading && (
+        <CopyDateModal
+          onUseEntryDate={() => handleCopy(copyingReading, false)}
+          onUseToday={() => handleCopy(copyingReading, true)}
+          onCancel={() => setCopyingReading(null)}
         />
       )}
 

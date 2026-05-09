@@ -23,7 +23,7 @@ export function SettingsPage({ theme, onThemeChange }: Props) {
     const sugarReadings = sugarStorage.getAll();
     const csv = buildCombinedCsv(bpReadings, sugarReadings);
     const exportDate = new Date().toISOString().slice(0, 10);
-    downloadCsv(`ihealth-records-${exportDate}.csv`, csv);
+    downloadCsv(`heldy-records-${exportDate}.csv`, csv);
   };
 
   const handleImportCsv = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -61,7 +61,7 @@ export function SettingsPage({ theme, onThemeChange }: Props) {
   const handleBackupDownload = () => {
     const backup = getAppBackupData();
     const exportDate = new Date().toISOString().slice(0, 10);
-    downloadJson(`ihealth-backup-${exportDate}.json`, backup);
+    downloadJson(`heldy-backup-${exportDate}.json`, backup);
   };
 
   const handleBackupRestore = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -78,7 +78,7 @@ export function SettingsPage({ theme, onThemeChange }: Props) {
       if (backup.theme) onThemeChange(backup.theme);
       window.alert('Backup restored successfully.');
     } catch {
-      window.alert('Restore failed. Please choose a valid ihealth backup JSON file.');
+      window.alert('Restore failed. Please choose a valid heldy backup JSON file.');
     } finally {
       event.target.value = '';
     }

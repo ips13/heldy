@@ -1,7 +1,7 @@
 import type { BPReading, SugarReading } from '../types';
 
-const BP_KEY = 'ihealth_bp_readings';
-const SUGAR_KEY = 'ihealth_sugar_readings';
+const BP_KEY = 'heldy_bp_readings';
+const SUGAR_KEY = 'heldy_sugar_readings';
 
 function load<T>(key: string): T[] {
   try {
@@ -88,7 +88,7 @@ export interface AppBackupData {
 
 export function getAppBackupData(): AppBackupData {
   return {
-    theme: localStorage.getItem('ihealth_theme') === 'light' ? 'light' : 'dark',
+    theme: localStorage.getItem('heldy_theme') === 'light' ? 'light' : 'dark',
     bpReadings: bpStorage.getAll(),
     sugarReadings: sugarStorage.getAll(),
     version: '1.0.0',
@@ -100,6 +100,6 @@ export function applyAppBackupData(data: AppBackupData): void {
   bpStorage.replaceAll(data.bpReadings ?? []);
   sugarStorage.replaceAll(data.sugarReadings ?? []);
   if (data.theme) {
-    localStorage.setItem('ihealth_theme', data.theme);
+    localStorage.setItem('heldy_theme', data.theme);
   }
 }
