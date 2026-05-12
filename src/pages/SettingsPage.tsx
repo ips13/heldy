@@ -1,5 +1,5 @@
 import { useRef, type ChangeEvent } from 'react';
-import { Download, Moon, Palette, Sun, Upload, Database, RotateCcw } from 'lucide-react';
+import { Download, Moon, Palette, Sun, Upload, Database, RotateCcw, Lock } from 'lucide-react';
 import { bpStorage, sugarStorage, applyAppBackupData, getAppBackupData } from '../utils/storage';
 import {
   buildCombinedCsv,
@@ -12,11 +12,18 @@ import {
 interface Props {
   theme: 'dark' | 'light';
   onThemeChange: (theme: 'dark' | 'light') => void;
+  lockEnabled: boolean;
+  onLockEnabledChange: (enabled: boolean) => void;
 }
 
-export function SettingsPage({ theme, onThemeChange }: Props) {
+export function SettingsPage({ theme, onThemeChange, lockEnabled, onLockEnabledChange }: Props) {
   const csvInputRef = useRef<HTMLInputElement | null>(null);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleLockToggle = (enabled: boolean) => {
+    localStorage.setItem('heldy_lock_enabled', enabled ? 'true' : 'false');
+    onLockEnabledChange(enabled);
+  };
 
   const handleExport = () => {
     const bpReadings = bpStorage.getAll();
@@ -76,6 +83,7 @@ export function SettingsPage({ theme, onThemeChange }: Props) {
 
       applyAppBackupData(backup);
       if (backup.theme) onThemeChange(backup.theme);
+      if (backup.lockEnabled !== undefined) onLockEnabledChange(backup.lockEnabled);
       window.alert('Backup restored successfully.');
     } catch {
       window.alert('Restore failed. Please choose a valid heldy backup JSON file.');
@@ -125,6 +133,35 @@ export function SettingsPage({ theme, onThemeChange }: Props) {
             <p className="font-semibold text-slate-100">Light</p>
             <p className="text-xs text-slate-400 mt-1">Bright daytime layout</p>
           </button>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 className="font-semibold text-slate-200 mb-4 flex items-center gap-2">
+          <Lock className="w-5 h-5 text-purple-400" />
+          Security
+        </h3>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30">
+            <div>
+              <p className="font-medium text-slate-100">Lock Screen</p>
+              <p className="text-xs text-slate-400 mt-0.5">Protect app with 4-digit passcode</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleLockToggle(!lockEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                lockEnabled ? 'bg-blue-600' : 'bg-slate-700'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  lockEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
         </div>
       </div>
 

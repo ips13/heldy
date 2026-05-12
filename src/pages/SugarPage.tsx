@@ -343,16 +343,24 @@ export function SugarPage() {
       </div>
 
       {latest && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <StatCard
             label="Latest"
             value={latest.unit === 'mmol/L' ? `${latest.value} mmol/L` : `${latest.value} mg/dL`}
             sub={MEAL_CONTEXT_LABELS[latest.mealContext]}
             color="orange"
+            compact
           />
-          {avg && <StatCard label={`Avg (${period})`} value={`${avg} mg/dL`} sub={`~ ${mgdlToMmol(avg)} mmol/L`} color="orange" />}
-          {hba1c && <StatCard label="Est. HbA1c" value={`${hba1c}%`} sub="ADAG estimate" color="green" />}
-          <StatCard label="Total" value={readings.length} sub="all time" color="blue" />
+          {avg && <StatCard label={`Avg (${period})`} value={`${avg} mg/dL`} sub={`~ ${mgdlToMmol(avg)} mmol/L`} color="orange" compact />}
+          {hba1c && <StatCard label="Est. HbA1c" value={`${hba1c}%`} sub="ADAG estimate" color="green" compact />}
+          <StatCard label="Total" value={readings.length} sub="all time" color="blue" compact />
+        </div>
+      )}
+
+      {filtered.length > 0 && (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <span className="text-sm text-slate-400">Period Filter</span>
+          <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
         </div>
       )}
 
@@ -360,28 +368,25 @@ export function SugarPage() {
         <div className="card">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <h3 className="font-semibold text-slate-200">Trend (mg/dL)</h3>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex rounded-lg overflow-hidden border border-slate-700">
-                <button
-                  type="button"
-                  onClick={() => setChartType('area')}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    chartType === 'area' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                  }`}
-                >
-                  Area
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChartType('bar')}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    chartType === 'bar' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                  }`}
-                >
-                  Bar
-                </button>
-              </div>
-              <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
+            <div className="flex rounded-lg overflow-hidden border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setChartType('area')}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  chartType === 'area' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                Area
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartType('bar')}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  chartType === 'bar' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                Bar
+              </button>
             </div>
           </div>
           {chartType === 'area' ? (
@@ -425,17 +430,14 @@ export function SugarPage() {
       <div className="card">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h3 className="font-semibold text-slate-200">History</h3>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowActions((s) => !s)}
-              className={`btn-icon text-slate-500 ${showActions ? 'text-orange-400' : 'hover:text-slate-300'}`}
-              title={showActions ? 'Hide actions' : 'Show copy & delete'}
-            >
-              {showActions ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-            <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowActions((s) => !s)}
+            className={`btn-icon text-slate-500 ${showActions ? 'text-orange-400' : 'hover:text-slate-300'}`}
+            title={showActions ? 'Hide actions' : 'Show copy & delete'}
+          >
+            {showActions ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
         </div>
 
         {!showActions && filtered.length > 0 && (

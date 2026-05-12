@@ -494,11 +494,18 @@ export function BPPage() {
       </div>
 
       {latest && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <StatCard label="Latest Systolic" value={latest.systolic} sub="mmHg" color="blue" />
-          <StatCard label="Latest Diastolic" value={latest.diastolic} sub="mmHg" color="orange" />
-          {latest.pulse && <StatCard label="Latest Pulse" value={latest.pulse} sub="bpm" color="green" />}
-          {avg && <StatCard label="Avg (period)" value={`${avg.sys}/${avg.dia}`} sub="systolic / diastolic" color="blue" />}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatCard label="Latest Systolic" value={latest.systolic} sub="mmHg" color="blue" compact />
+          <StatCard label="Latest Diastolic" value={latest.diastolic} sub="mmHg" color="orange" compact />
+          {latest.pulse && <StatCard label="Latest Pulse" value={latest.pulse} sub="bpm" color="green" compact />}
+          {avg && <StatCard label="Avg (period)" value={`${avg.sys}/${avg.dia}`} sub="systolic / diastolic" color="blue" compact />}
+        </div>
+      )}
+
+      {filtered.length > 0 && (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <span className="text-sm text-slate-400">Period Filter</span>
+          <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
         </div>
       )}
 
@@ -506,28 +513,25 @@ export function BPPage() {
         <div className="card">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <h3 className="font-semibold text-slate-200">Trend</h3>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex rounded-lg overflow-hidden border border-slate-700">
-                <button
-                  type="button"
-                  onClick={() => setChartType('area')}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    chartType === 'area' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                  }`}
-                >
-                  Area
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChartType('bar')}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    chartType === 'bar' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                  }`}
-                >
-                  Bar
-                </button>
-              </div>
-              <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
+            <div className="flex rounded-lg overflow-hidden border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setChartType('area')}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  chartType === 'area' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                Area
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartType('bar')}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  chartType === 'bar' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                Bar
+              </button>
             </div>
           </div>
           {chartType === 'area' ? (
@@ -577,17 +581,14 @@ export function BPPage() {
       <div className="card">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h3 className="font-semibold text-slate-200">History</h3>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowActions((s) => !s)}
-              className={`btn-icon text-slate-500 ${showActions ? 'text-blue-400' : 'hover:text-slate-300'}`}
-              title={showActions ? 'Hide actions' : 'Show copy & delete'}
-            >
-              {showActions ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-            <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomRangeChange={setCustomRange} />
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowActions((s) => !s)}
+            className={`btn-icon text-slate-500 ${showActions ? 'text-blue-400' : 'hover:text-slate-300'}`}
+            title={showActions ? 'Hide actions' : 'Show copy & delete'}
+          >
+            {showActions ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
         </div>
 
         {!showActions && filtered.length > 0 && (

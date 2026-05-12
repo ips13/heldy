@@ -19,6 +19,10 @@ export default function App() {
   const [isLocked, setIsLocked] = useState(() => {
     return sessionStorage.getItem('heldy_unlocked') !== 'true';
   });
+  const [lockEnabled, setLockEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('heldy_lock_enabled');
+    return saved !== 'false';
+  });
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('heldy_theme');
@@ -41,7 +45,7 @@ export default function App() {
 
   return (
     <div className="app-shell flex flex-col min-h-dvh">
-      {isLocked && (
+      {lockEnabled && isLocked && (
         <LockScreen
           onUnlock={() => {
             sessionStorage.setItem('heldy_unlocked', 'true');
@@ -73,6 +77,8 @@ export default function App() {
           <SettingsPage
             theme={theme}
             onThemeChange={setTheme}
+            lockEnabled={lockEnabled}
+            onLockEnabledChange={setLockEnabled}
           />
         )}
       </main>

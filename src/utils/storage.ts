@@ -80,6 +80,7 @@ export const sugarStorage = {
 
 export interface AppBackupData {
   theme?: 'dark' | 'light';
+  lockEnabled?: boolean;
   bpReadings: BPReading[];
   sugarReadings: SugarReading[];
   version?: string;
@@ -89,6 +90,7 @@ export interface AppBackupData {
 export function getAppBackupData(): AppBackupData {
   return {
     theme: localStorage.getItem('heldy_theme') === 'light' ? 'light' : 'dark',
+    lockEnabled: localStorage.getItem('heldy_lock_enabled') !== 'false',
     bpReadings: bpStorage.getAll(),
     sugarReadings: sugarStorage.getAll(),
     version: '1.0.0',
@@ -101,5 +103,8 @@ export function applyAppBackupData(data: AppBackupData): void {
   sugarStorage.replaceAll(data.sugarReadings ?? []);
   if (data.theme) {
     localStorage.setItem('heldy_theme', data.theme);
+  }
+  if (data.lockEnabled !== undefined) {
+    localStorage.setItem('heldy_lock_enabled', data.lockEnabled ? 'true' : 'false');
   }
 }
